@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Red Pen</title>
+<meta name="description" content="A grammar game. Four sentences, one is correct. Pick it, beat the clock, and learn why the others fall short.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f6f4ee">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Red Pen">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one centred column. A scoreboard strip on top, a ruled "exercise sheet" for the topic, four sentence cards, a verdict bar. */
+:root {
+  --bg: #f6f4ee; --paper: #fffdf8; --rule: #d9d3c4; --fg: #1f1d1a; --muted: #6b655a;
+  --ink: #1d3f8a; --ink-soft: #e4eaf8;
+  --pen: #b4322a; --pen-soft: #f8e4e2;
+  --tick: #2d6a3e; --tick-soft: #e1efe4;
+  --gold: #b8860b; --gold-soft: #fbf0d2;
+  --display: "Literata", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181c; --paper: #1f2126; --rule: #363942; --fg: #ebe8e0; --muted: #a09b90;
+    --ink: #8fb0ff; --ink-soft: #243052; --pen: #ff8a7f; --pen-soft: #4a2622; --tick: #7fd49a; --tick-soft: #1f3b28;
+    --gold: #f0c04a; --gold-soft: #3d3418; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17181c; --paper: #1f2126; --rule: #363942; --fg: #ebe8e0; --muted: #a09b90;
+  --ink: #8fb0ff; --ink-soft: #243052; --pen: #ff8a7f; --pen-soft: #4a2622; --tick: #7fd49a; --tick-soft: #1f3b28;
+  --gold: #f0c04a; --gold-soft: #3d3418; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.5;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 640px; margin: 0 auto; display: grid; gap: 18px; }
+h1 { font-family: var(--display); font-weight: 600; font-size: 1.5rem; margin: 0; letter-spacing: -0.01em; }
+.eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; }
+.btn { font: inherit; font-weight: 600; background: var(--ink); color: #fff; border: 0; border-radius: 6px; padding: 11px 20px; cursor: pointer; }
+.btn:focus-visible, .opt:focus-visible, .life:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--ink); }
+.btn:disabled { opacity: .45; cursor: default; }
+
+/* Scoreboard */
+.board { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; }
+.board .score { font-family: var(--display); font-size: 1.75rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.board .sub { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hearts { display: flex; gap: 4px; font-size: 1.1rem; letter-spacing: 1px; }
+.hearts span { color: var(--pen); transition: opacity .3s, transform .3s; }
+.hearts span.lost { opacity: .2; transform: scale(.8); }
+.streak { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--ink-soft); color: var(--ink); font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.streak.hot { background: var(--gold-soft); color: var(--gold); }
+.timer { grid-column: 1 / -1; height: 5px; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.timer i { display: block; height: 100%; width: 100%; background: var(--ink); transform-origin: left; }
+.timer.low i { background: var(--pen); }
+
+/* Sheet */
+.sheet {
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 26px 24px 20px; position: relative;
+  background-image: repeating-linear-gradient(transparent 0 31px, var(--rule) 31px 32px); background-origin: content-box;
+}
+.sheet .tag { position: absolute; top: 10px; right: 12px; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
+.topic { font-family: var(--display); font-size: 1.375rem; line-height: 32px; margin: 0; text-wrap: balance; }
+.prompt { font-size: 0.875rem; color: var(--muted); margin: 0; }
+
+/* Options */
+.options { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.opt {
+  width: 100%; text-align: left; font: inherit; color: var(--fg); background: var(--paper); border: 1px solid var(--rule); border-radius: 6px;
+  padding: 12px 14px; cursor: pointer; display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start;
+  transition: border-color .15s, background .15s, transform .15s, opacity .3s;
+}
+.opt:hover:not(:disabled) { border-color: var(--ink); transform: translateY(-1px); }
+.opt .key { font-size: 0.75rem; font-weight: 700; color: var(--muted); border: 1px solid var(--rule); border-radius: 4px; width: 24px; height: 24px; display: grid; place-items: center; }
+.opt .text { font-family: var(--display); font-size: 1.0625rem; line-height: 1.45; }
+.opt .why { grid-column: 2; font-size: 0.875rem; color: var(--muted); display: none; }
+.opt .why b { color: var(--fg); font-weight: 600; }
+.opt:disabled { cursor: default; }
+.opt.is-correct { border-color: var(--tick); background: var(--tick-soft); animation: pop .35s; }
+.opt.is-correct .key { background: var(--tick); border-color: var(--tick); color: #fff; }
+.opt.is-wrong { border-color: var(--pen); background: var(--pen-soft); animation: shake .4s; }
+.opt.is-wrong .key { background: var(--pen); border-color: var(--pen); color: #fff; }
+.opt.show .why { display: block; }
+.opt.cut { opacity: .25; pointer-events: none; text-decoration: line-through; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+@keyframes pop { 0%{transform:scale(1)} 40%{transform:scale(1.02)} 100%{transform:scale(1)} }
+
+/* Verdict + float */
+.verdict { display: none; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.verdict.show { display: flex; }
+.verdict p { margin: 0; font-weight: 500; }
+.verdict .pts { color: var(--tick); font-weight: 700; font-variant-numeric: tabular-nums; }
+.verdict .pts.zero { color: var(--pen); }
+.float { position: fixed; left: 50%; top: 40%; transform: translate(-50%,0); font-family: var(--display); font-weight: 600; font-size: 2.5rem; color: var(--tick); pointer-events: none; opacity: 0; }
+.float.go { animation: rise 1s ease-out forwards; }
+@keyframes rise { 0%{opacity:0; transform:translate(-50%,10px) scale(.8)} 20%{opacity:1; transform:translate(-50%,0) scale(1.05)} 100%{opacity:0; transform:translate(-50%,-60px) scale(1)} }
+
+.tools { display: flex; gap: 10px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+.hint { font-size: 0.8rem; color: var(--muted); }
+.hint kbd { font-family: var(--body); border: 1px solid var(--rule); border-radius: 3px; padding: 0 5px; font-size: 0.75rem; }
+
+/* Screens */
+.screen { display: none; gap: 18px; }
+.screen.show { display: grid; }
+.intro .sheet { padding-bottom: 26px; }
+.intro ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.925rem; }
+.intro li { margin: 4px 0; }
+.result h2 { font-family: var(--display); font-weight: 600; margin: 0; font-size: 1.5rem; }
+.result .big { font-family: var(--display); font-size: 3.5rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.result .grade { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--gold-soft); color: var(--gold); font-weight: 700; font-size: 0.85rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--rule); }
+td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.weak { color: var(--pen); font-weight: 600; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+@media (prefers-reduced-motion: reduce) { .opt, .hearts span { transition: none; } .opt.is-correct, .opt.is-wrong, .float.go { animation: none; } .timer i { transition: none; } }
+@media (max-width: 480px) { .sheet { padding: 24px 16px 18px; } .board { grid-template-columns: 1fr auto; } .board .hearts { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- Intro -->
+  <section class="screen intro show" id="intro">
+    <div>
+      <div class="eyebrow">Pick the correct sentence</div>
+      <h1>Red Pen</h1>
+    </div>
+    <div class="sheet">
+      <p class="topic">Twelve rounds. Three lives. One sentence in four is right.</p>
+      <ul style="margin-top:14px">
+        <li>Answer fast for a time bonus. The bar drains in 20 seconds.</li>
+        <li>Build a streak: 3 in a row doubles your points, 6 in a row triples them.</li>
+        <li>One 50/50 per game removes two wrong answers.</li>
+        <li>Three mistakes ends the game early.</li>
+      </ul>
+    </div>
+    <div class="row">
+      <button class="btn" id="play">Start playing</button>
+      <span class="hint" id="bestLine" style="align-self:center"></span>
+    </div>
+  </section>
+
+  <!-- Game -->
+  <section class="screen" id="game">
+    <div class="board">
+      <div>
+        <div class="score" id="score">0</div>
+        <div class="sub">Round <span id="round">1</span> of <span id="total">12</span></div>
+      </div>
+      <span class="streak" id="streak">Streak 0</span>
+      <div class="hearts" id="hearts" aria-label="Lives"></div>
+      <div class="timer" id="timer"><i id="timerBar"></i></div>
+    </div>
+    <div class="sheet">
+      <span class="tag" id="tier"></span>
+      <p class="topic" id="topic"></p>
+      <p class="prompt" style="margin-top:8px">Which one of these four is written correctly?</p>
+    </div>
+    <ul class="options" id="options"></ul>
+    <div class="tools">
+      <button class="btn ghost" id="fifty">Use 50/50</button>
+      <span class="hint">Press <kbd>1</kbd>–<kbd>4</kbd> or <kbd>A</kbd>–<kbd>D</kbd> to answer</span>
+    </div>
+    <div class="verdict" id="verdict">
+      <p id="verdictText"></p>
+      <button class="btn" id="next">Next round</button>
+    </div>
+  </section>
+
+  <!-- Result -->
+  <section class="screen result" id="result">
+    <div>
+      <div class="eyebrow" id="resEyebrow">Game over</div>
+      <h2 id="resTitle"></h2>
+    </div>
+    <div class="sheet">
+      <div class="big" id="resScore">0</div>
+      <p class="prompt" style="margin-top:8px" id="resLine"></p>
+      <p style="margin:12px 0 0"><span class="grade" id="grade"></span></p>
+    </div>
+    <table>
+      <thead><tr><th>Grammar point</th><th class="n">Seen</th><th class="n">Missed</th></tr></thead>
+      <tbody id="sumBody"></tbody>
+    </table>
+    <div class="row">
+      <button class="btn" id="again">Play again</button>
+    </div>
+  </section>
+</div>
+<div class="float" id="float" aria-hidden="true"></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script>
+// Each round: a topic line, then four sentences. Exactly one has ok:true. Every sentence names the point it tests and why it is right or wrong.
+const BANK = [
+  // Tier 1
+  { t:1, topic:"Talking about what someone likes.", o:[
+    { s:"She doesn't like coffee in the morning.", ok:true,  k:"Subject–verb agreement", w:"“She” is third-person singular, so the helper verb is “does” and the main verb stays as “like”." },
+    { s:"She don't like coffee in the morning.",   k:"Subject–verb agreement", w:"“Don't” goes with I, you, we and they. A singular “she” needs “doesn't”." },
+    { s:"She doesn't likes coffee in the morning.", k:"Double marking", w:"Once “does” carries the tense, the main verb goes back to its base form: “like”, not “likes”." },
+    { s:"She not like coffee in the morning.",      k:"Missing auxiliary", w:"English negatives need a helper verb. “Not” cannot attach to “like” on its own." } ] },
+  { t:1, topic:"Describing a person.", o:[
+    { s:"He is an honest man.",  ok:true, k:"Article before a silent h", w:"“Honest” starts with a vowel sound because the “h” is silent, so it takes “an”." },
+    { s:"He is a honest man.",   k:"Article before a silent h", w:"“A” is for consonant sounds. Say the word aloud: “onest” begins with a vowel sound." },
+    { s:"He is honest man.",     k:"Missing article", w:"A singular countable noun like “man” needs an article or another determiner." },
+    { s:"He is an honest men.",  k:"Number", w:"“Men” is plural, but the article “an” and the subject “he” are singular." } ] },
+  { t:1, topic:"Children outside.", o:[
+    { s:"The children are playing outside.",  ok:true, k:"Irregular plural", w:"“Children” is already plural, and “are” agrees with it." },
+    { s:"The childrens are playing outside.", k:"Irregular plural", w:"“Children” never takes an extra “s”. It is one of the irregular plurals you just have to know." },
+    { s:"The children is playing outside.",   k:"Subject–verb agreement", w:"A plural subject needs “are”, not “is”." },
+    { s:"The childs are playing outside.",    k:"Irregular plural", w:"The plural of “child” is “children”, not “childs”." } ] },
+  { t:1, topic:"Going somewhere with a friend.", o:[
+    { s:"He and I are going to the shops.",  ok:true, k:"Pronoun case", w:"Both people are the subject, so both take subject pronouns. Test it alone: “I am going”, “He is going”." },
+    { s:"Me and him are going to the shops.", k:"Pronoun case", w:"“Me” and “him” are object pronouns. You would never say “Me is going”." },
+    { s:"Him and I are going to the shops.",  k:"Pronoun case", w:"Half right. “I” is a subject pronoun but “him” is not; it should be “he”." },
+    { s:"He and me are going to the shops.",  k:"Pronoun case", w:"Same slip the other way round. “Me” cannot be a subject; it should be “I”." } ] },
+  { t:1, topic:"Comparing crowds.", o:[
+    { s:"There are fewer people here than last week.", ok:true, k:"Countable vs uncountable", w:"“People” can be counted one by one, so the word is “fewer”." },
+    { s:"There are less people here than last week.",  k:"Countable vs uncountable", w:"“Less” is for things you measure rather than count, like water or time." },
+    { s:"There is fewer people here than last week.",  k:"Subject–verb agreement", w:"“People” is plural, so it needs “there are”." },
+    { s:"There are fewer peoples here than last week.", k:"Plural form", w:"“People” is already plural. “Peoples” means different ethnic groups, which is not the meaning here." } ] },
+  { t:1, topic:"The weather forecast.", o:[
+    { s:"It's going to rain later, so bring an umbrella.", ok:true, k:"Apostrophe", w:"“It's” is short for “it is”. The apostrophe marks the missing letter." },
+    { s:"Its going to rain later, so bring an umbrella.",  k:"Apostrophe", w:"“Its” without an apostrophe is the possessive, as in “the dog wagged its tail”. Here you mean “it is”." },
+    { s:"It's going to rain later, so bring a umbrella.",  k:"Article", w:"“Umbrella” starts with a vowel sound, so it takes “an”." },
+    { s:"It's going to rain later so, bring an umbrella.", k:"Comma placement", w:"The comma belongs before “so”, where the two clauses join, not after it." } ] },
+  { t:1, topic:"A trip to the zoo.", o:[
+    { s:"I saw an elephant at the zoo yesterday.", ok:true, k:"Past tense", w:"“Saw” is the past of “see”, and it matches “yesterday”." },
+    { s:"I seen an elephant at the zoo yesterday.", k:"Past tense", w:"“Seen” is the past participle and needs a helper: “I have seen”. On its own the past is “saw”." },
+    { s:"I saw a elephant at the zoo yesterday.",   k:"Article", w:"“Elephant” begins with a vowel sound, so it takes “an”." },
+    { s:"I see an elephant at the zoo yesterday.",  k:"Tense", w:"“Yesterday” puts the event in the past, so the verb must be past tense too." } ] },
+  { t:1, topic:"Where you live.", o:[
+    { s:"I have lived in Aberdeen for three years.", ok:true, k:"Present perfect with “for”", w:"Something that started in the past and still continues takes the present perfect, and a duration takes “for”." },
+    { s:"I have lived in Aberdeen since three years.", k:"For vs since", w:"“Since” introduces a starting point, like “since 2023”. A length of time takes “for”." },
+    { s:"I am living in Aberdeen for three years.",  k:"Tense", w:"Present continuous describes right now. To cover the past three years as well, use the present perfect." },
+    { s:"I lived in Aberdeen for three years.",      k:"Tense (meaning)", w:"Grammatical, but it means you no longer live there. The topic is where you live now." } ] },
+  // Tier 2
+  { t:2, topic:"A visit to the dentist.", o:[
+    { s:"Yesterday I went to the dentist and he told me I needed a filling.", ok:true, k:"Tense consistency", w:"Every verb stays in the past, matching “yesterday”." },
+    { s:"Yesterday I go to the dentist and he tells me I need a filling.",   k:"Tense consistency", w:"“Yesterday” sets the story in the past, but all three verbs are present." },
+    { s:"Yesterday I went to the dentist and he tells me I need a filling.", k:"Tense consistency", w:"The sentence starts in the past and then jumps to the present mid-way." },
+    { s:"Yesterday I had went to the dentist and he told me I needed a filling.", k:"Verb form", w:"“Had” takes the past participle: “had gone”. “Had went” is never correct." } ] },
+  { t:2, topic:"Forgetting something.", o:[
+    { s:"I went to the shop, but I forgot my wallet.", ok:true, k:"Joining clauses", w:"Two complete sentences joined by a comma plus a conjunction. That is the standard pattern." },
+    { s:"I went to the shop, I forgot my wallet.",     k:"Comma splice", w:"A comma on its own cannot join two complete sentences. Add a conjunction, use a semicolon, or split them." },
+    { s:"I went to the shop but, I forgot my wallet.", k:"Comma placement", w:"The comma goes before “but”, not after it." },
+    { s:"I went to the shop but I forget my wallet.",  k:"Tense consistency", w:"“Went” is past, “forget” is present. Both actions happened at the same time, so both should be past." } ] },
+  { t:2, topic:"Comparing sisters.", o:[
+    { s:"She is taller than her sister.",      ok:true, k:"Comparative", w:"Short adjectives form the comparative with “-er”, and that is all they need." },
+    { s:"She is more taller than her sister.", k:"Double comparative", w:"“Taller” already means “more tall”. Adding “more” doubles the comparison." },
+    { s:"She is taller then her sister.",      k:"Than vs then", w:"“Than” makes comparisons. “Then” is about time or sequence." },
+    { s:"She is more tall than her sister.",   k:"Comparative form", w:"One-syllable adjectives take “-er”. “More” is for longer adjectives like “more beautiful”." } ] },
+  { t:2, topic:"Students handing in essays.", o:[
+    { s:"Each of the students has submitted an essay.", ok:true, k:"Indefinite pronoun", w:"“Each” is singular, so the verb is “has”. “Of the students” is just a phrase describing which group." },
+    { s:"Each of the students have submitted an essay.", k:"Subject–verb agreement", w:"The verb got pulled toward the nearby plural “students”. The real subject is “each”, which is singular." },
+    { s:"Each of the student has submitted an essay.",   k:"Number after “of the”", w:"“Each of the” always introduces a plural group: “each of the students”." },
+    { s:"Each of the students has submit an essay.",     k:"Participle", w:"“Has” takes a past participle: “submitted”." } ] },
+  { t:2, topic:"Giving advice.", o:[
+    { s:"If I were you, I would take the job.", ok:true, k:"Subjunctive", w:"An imaginary “if” clause uses “were” for every person in careful writing." },
+    { s:"If I was you, I would take the job.",  k:"Subjunctive", w:"Common in speech, but the hypothetical “if I were” is what standard written English expects." },
+    { s:"If I were you, I will take the job.",  k:"Conditional pairing", w:"A hypothetical “were” pairs with “would”, not “will”." },
+    { s:"If I would be you, I would take the job.", k:"Conditional pairing", w:"“Would” belongs in the result clause only, never in the “if” clause." } ] },
+  { t:2, topic:"A late meeting.", o:[
+    { s:"The manager, as well as his assistants, was late.", ok:true, k:"Interrupting phrase", w:"“As well as his assistants” is an aside. The subject is still “the manager”, so the verb is singular." },
+    { s:"The manager, as well as his assistants, were late.", k:"Subject–verb agreement", w:"“As well as” does not make the subject plural the way “and” would." },
+    { s:"The manager as well as his assistants, was late.",   k:"Comma pairing", w:"An aside needs a comma on both sides, or none at all." },
+    { s:"The manager, as well as his assistants was late.",   k:"Comma pairing", w:"The closing comma after “assistants” is missing." } ] },
+  { t:2, topic:"Marking a test.", o:[
+    { s:"Neither of the answers was correct.",  ok:true, k:"Neither is singular", w:"“Neither” means “not one”, so it takes a singular verb even though “answers” is plural." },
+    { s:"Neither of the answers were correct.", k:"Subject–verb agreement", w:"The plural “answers” sits next to the verb and tempts you into “were”, but the subject is “neither”." },
+    { s:"Neither of the answer was correct.",   k:"Number after “of the”", w:"“Neither of the” refers to two things, so the noun must be plural: “answers”." },
+    { s:"Neither answers was correct.",         k:"Determiner", w:"Used directly before a noun, “neither” takes a singular: “neither answer was correct”." } ] },
+  { t:2, topic:"Weekend plans.", o:[
+    { s:"My brother and I went to the match on Saturday.", ok:true, k:"Pronoun case", w:"“My brother and I” is the subject, so “I” is correct. Drop “my brother and” and it still reads “I went”." },
+    { s:"My brother and me went to the match on Saturday.", k:"Pronoun case", w:"“Me” cannot be a subject. You would not say “Me went to the match”." },
+    { s:"Me and my brother went to the match in Saturday.", k:"Pronoun case and preposition", w:"Two slips: “me” as a subject, and “in Saturday” where days take “on”." },
+    { s:"My brother and I went to the match at Saturday.",  k:"Preposition", w:"Days of the week take “on”. “At” is for clock times." } ] },
+  // Tier 3
+  { t:3, topic:"A walk in autumn.", o:[
+    { s:"Walking down the street, I noticed how beautiful the trees looked.", ok:true, k:"Modifier attachment", w:"The opening phrase describes the subject that follows it: “I” was walking." },
+    { s:"Walking down the street, the trees looked beautiful.", k:"Dangling modifier", w:"The phrase attaches to the nearest subject, “the trees”, which makes the trees do the walking." },
+    { s:"Walking down the street, the beauty of the trees struck me.", k:"Dangling modifier", w:"Now “the beauty” is walking. The person walking must be the grammatical subject." },
+    { s:"Walking down the street the trees looked beautiful to me.", k:"Dangling modifier", w:"Dropping the comma does not fix it. The trees are still the subject doing the walking." } ] },
+  { t:3, topic:"Hobbies.", o:[
+    { s:"She likes reading, swimming, and riding her bike.", ok:true, k:"Parallel structure", w:"All three list items share the same “-ing” form." },
+    { s:"She likes reading, swimming, and to ride her bike.", k:"Faulty parallelism", w:"Two “-ing” forms and one “to” form clash. Items in a list should match." },
+    { s:"She likes to read, swimming, and riding her bike.",  k:"Faulty parallelism", w:"The first item breaks the pattern this time." },
+    { s:"She likes reading, swimming, and she rides her bike.", k:"Faulty parallelism", w:"The third item is a whole clause while the first two are single words." } ] },
+  { t:3, topic:"A long report.", o:[
+    { s:"The report, which took six weeks to write, was finally published.", ok:true, k:"Non-restrictive clause", w:"Extra information about the report is set off with commas and “which”." },
+    { s:"The report, that took six weeks to write, was finally published.", k:"That vs which", w:"“That” introduces essential information and never takes commas." },
+    { s:"The report which took six weeks to write, was finally published.", k:"Comma pairing", w:"The clause needs commas on both sides, or none." },
+    { s:"The report, which took six weeks to write, were finally published.", k:"Subject–verb agreement", w:"The subject is the singular “report”, so the verb is “was”." } ] },
+  { t:3, topic:"A strict diet.", o:[
+    { s:"On Monday I ate only vegetables.", ok:true, k:"Modifier placement", w:"“Only” sits directly before the thing it limits: vegetables, nothing else." },
+    { s:"On Monday I only ate vegetables.", k:"Misplaced modifier", w:"Grammatical, but read literally it says eating was the only thing you did on Monday. Put “only” next to what it limits." },
+    { s:"Only on Monday I ate vegetables.", k:"Inversion after “only”", w:"When “only” opens the sentence, the verb inverts: “Only on Monday did I eat vegetables”. It also changes the meaning." },
+    { s:"On Monday I ate vegetables only.", k:"Modifier placement", w:"Acceptable in speech but ambiguous in writing: does “only” limit vegetables or the whole act of eating?" } ] },
+  { t:3, topic:"Collecting exam papers.", o:[
+    { s:"When the students had finished the exam, the invigilator collected the papers.", ok:true, k:"Modifier attachment", w:"The clause names its own subject, the students, so nothing dangles." },
+    { s:"Having finished the exam, the invigilator collected the papers.", k:"Dangling modifier", w:"The invigilator did not sit the exam. The opening phrase attaches to the wrong person." },
+    { s:"Having finished the exam, the papers were collected by the invigilator.", k:"Dangling modifier", w:"Now the papers finished the exam. Passive voice does not rescue a dangling phrase." },
+    { s:"When the students finished the exam the invigilator, collected the papers.", k:"Comma placement", w:"The comma belongs after the opening clause, not between the subject and its verb." } ] },
+  { t:3, topic:"Answering the phone.", o:[
+    { s:"Who should I say is calling?", ok:true, k:"Who vs whom", w:"The pronoun is the subject of “is calling”. “Should I say” is an interruption that tricks the ear." },
+    { s:"Whom should I say is calling?", k:"Who vs whom", w:"“Whom” is an object form, but here the word is doing the calling, so it is a subject." },
+    { s:"Who should I say are calling?", k:"Subject–verb agreement", w:"“Who” for one caller takes a singular verb." },
+    { s:"Who I should say is calling?",  k:"Question word order", w:"Questions invert the helper verb and subject: “should I”, not “I should”." } ] },
+  { t:3, topic:"Admissions numbers.", o:[
+    { s:"The data shows that fewer students applied this year.", ok:true, k:"Collective noun", w:"“Data” as a singular mass noun is standard, and “fewer students” is right for a countable noun." },
+    { s:"The data shows that less students applied this year.", k:"Countable vs uncountable", w:"Students can be counted, so it is “fewer”." },
+    { s:"The datas show that fewer students applied this year.", k:"Plural form", w:"“Datas” is not a word. “Data” is already plural in origin." },
+    { s:"The data shows that fewer students has applied this year.", k:"Subject–verb agreement", w:"“Students” is plural, so it takes “have”." } ] },
+  { t:3, topic:"Team training.", o:[
+    { s:"The team has been training hard since January.", ok:true, k:"Present perfect continuous", w:"An activity that began in the past and continues now, with “since” marking the start point." },
+    { s:"The team has been training hard for January.",   k:"For vs since", w:"“For” takes a duration. A named month is a start point, which takes “since”." },
+    { s:"The team is training hard since January.",       k:"Tense", w:"“Since” reaches back into the past, so the verb needs the perfect aspect: “has been training”." },
+    { s:"The team have being training hard since January.", k:"Verb form", w:"After “have”, the form is “been”, never “being”." } ] },
+];
+
+const ROUNDS = 12, LIVES = 3, TIME = 20000, BASE = 100;
+const $ = id => document.getElementById(id);
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let order = [], i = 0, score = 0, streak = 0, best = 0, lives = LIVES, fifty = true, correct = 0;
+let seen = {}, missed = {}, t0 = 0, raf = 0, answered = false;
+let bestScore = 0; try { bestScore = +localStorage.getItem('rp-best') || 0; } catch (e) {}
+
+function shuffle(a){ for(let k=a.length-1;k>0;k--){ const j=Math.floor(Math.random()*(k+1)); [a[k],a[j]]=[a[j],a[k]]; } return a; }
+function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.toggle('show', s.id === id)); }
+function multiplier(){ return streak >= 6 ? 3 : streak >= 3 ? 2 : 1; }
+
+function start(){
+  const byTier = [1,2,3].map(t => shuffle(BANK.filter(q => q.t===t)));
+  order = [].concat(byTier[0].slice(0,4), byTier[1].slice(0,4), byTier[2].slice(0,4));
+  i = 0; score = 0; streak = 0; best = 0; lives = LIVES; fifty = true; correct = 0; seen = {}; missed = {};
+  $('total').textContent = order.length;
+  show('game'); render();
+}
+
+function render(){
+  const q = order[i]; answered = false;
+  $('topic').textContent = q.topic;
+  $('tier').textContent = ['Starter','Intermediate','Advanced'][q.t-1];
+  $('round').textContent = i+1; $('score').textContent = score;
+  $('fifty').disabled = !fifty;
+  updateStreak(); drawHearts();
+  $('verdict').classList.remove('show');
+  const list = $('options'); list.innerHTML = '';
+  shuffle(q.o.slice()).forEach((o, n) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.className = 'opt'; b.type = 'button'; b.dataset.ok = o.ok ? '1' : '';
+    b.innerHTML = `<span class="key">${'ABCD'[n]}</span><span class="text">${o.s}</span><span class="why"><b>${o.k}.</b> ${o.w}</span>`;
+    b.addEventListener('click', () => answer(b));
+    li.appendChild(b); list.appendChild(li);
+  });
+  startTimer();
+}
+
+function startTimer(){
+  cancelAnimationFrame(raf); t0 = performance.now();
+  $('timer').classList.remove('low');
+  const tick = now => {
+    const left = Math.max(0, 1 - (now - t0) / TIME);
+    $('timerBar').style.transform = `scaleX(${left})`;
+    if (left < .25) $('timer').classList.add('low');
+    if (left <= 0) { answer(null); return; }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+}
+
+function answer(btn){
+  if (answered) return; answered = true; cancelAnimationFrame(raf);
+  const q = order[i];
+  const right = !!btn && btn.dataset.ok === '1';
+  const key = q.o.find(o => o.ok).k;
+  seen[key] = (seen[key]||0)+1;
+  let pts = 0;
+  if (right) {
+    const bonus = Math.round(BASE * Math.max(0, 1 - (performance.now() - t0) / TIME));
+    pts = (BASE + bonus) * multiplier();
+    score += pts; correct++; streak++; best = Math.max(best, streak);
+    floatText('+' + pts);
+  } else {
+    streak = 0; lives--; missed[key] = (missed[key]||0)+1;
+  }
+  document.querySelectorAll('.opt').forEach(b => {
+    b.disabled = true; b.classList.add('show'); b.classList.remove('cut');
+    if (b.dataset.ok === '1') b.classList.add('is-correct');
+    else if (b === btn) b.classList.add('is-wrong');
+  });
+  $('score').textContent = score; updateStreak(); drawHearts();
+  const v = $('verdictText');
+  if (right) v.innerHTML = `<span class="pts">+${pts} points</span>` + (multiplier() > 1 ? ` with a ×${multiplier()} streak.` : '.') + ' Read why the other three fall short.';
+  else if (!btn) v.innerHTML = `<span class="pts zero">Time's up.</span> The correct one is marked in green.`;
+  else v.innerHTML = `<span class="pts zero">Not quite.</span> The correct one is marked in green.`;
+  const last = i === order.length-1 || lives === 0;
+  $('next').textContent = last ? 'See results' : 'Next round';
+  $('verdict').classList.add('show');
+  $('next').focus();
+}
+
+function useFifty(){
+  if (!fifty || answered) return; fifty = false; $('fifty').disabled = true;
+  const wrong = shuffle([...document.querySelectorAll('.opt')].filter(b => b.dataset.ok !== '1'));
+  wrong.slice(0,2).forEach(b => { b.classList.add('cut'); b.disabled = true; });
+}
+
+function updateStreak(){
+  const el = $('streak'); const m = multiplier();
+  el.textContent = m > 1 ? `Streak ${streak} · ×${m}` : `Streak ${streak}`;
+  el.classList.toggle('hot', m > 1);
+}
+function drawHearts(){
+  $('hearts').innerHTML = Array.from({length: LIVES}, (_, n) => `<span class="${n < lives ? '' : 'lost'}">♥</span>`).join('');
+}
+function floatText(txt){
+  if (reduced) return;
+  const f = $('float'); f.textContent = txt; f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+}
+
+function finish(){
+  const out = lives === 0;
+  const played = i + 1;
+  $('resEyebrow').textContent = out ? 'Out of lives' : 'Round complete';
+  $('resScore').textContent = score;
+  const newBest = score > bestScore;
+  if (newBest) { bestScore = score; try { localStorage.setItem('rp-best', bestScore); } catch (e) {} }
+  $('resTitle').textContent = newBest ? 'New personal best' : (out ? `Ended on round ${played}` : 'All twelve rounds done');
+  $('resLine').textContent = `${correct} of ${played} correct · best streak ${best} · previous best ${newBest ? 'beaten' : bestScore}`;
+  const pct = correct / order.length;
+  $('grade').textContent = pct === 1 ? 'Flawless' : pct >= .8 ? 'Sharp eye' : pct >= .6 ? 'Getting there' : pct >= .4 ? 'Needs practice' : 'Back to the sheet';
+  const body = $('sumBody'); body.innerHTML = '';
+  Object.keys(seen).sort((a,b)=>(missed[b]||0)-(missed[a]||0)).forEach(k => {
+    const m = missed[k]||0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${k}</td><td class="n">${seen[k]}</td><td class="n ${m?'weak':''}">${m}</td>`;
+    body.appendChild(tr);
+  });
+  show('result');
+  if (!reduced && (newBest || pct === 1)) confetti();
+}
+
+function confetti(){
+  const c = $('confetti'), ctx = c.getContext('2d');
+  c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio; ctx.scale(devicePixelRatio, devicePixelRatio);
+  const cols = [getComputedStyle(document.documentElement).getPropertyValue('--ink'), getComputedStyle(document.documentElement).getPropertyValue('--gold'), getComputedStyle(document.documentElement).getPropertyValue('--tick'), getComputedStyle(document.documentElement).getPropertyValue('--pen')];
+  const ps = Array.from({length: 140}, () => ({ x: Math.random()*innerWidth, y: -20 - Math.random()*innerHeight*.5, vy: 2 + Math.random()*3, vx: -1 + Math.random()*2, r: Math.random()*Math.PI, w: 6 + Math.random()*6, col: cols[Math.floor(Math.random()*cols.length)] }));
+  const t1 = performance.now();
+  (function frame(now){
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    ps.forEach(p => { p.y += p.vy; p.x += p.vx; p.r += .1; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r); ctx.fillStyle = p.col; ctx.fillRect(-p.w/2,-p.w/4,p.w,p.w/2); ctx.restore(); });
+    if (now - t1 < 2600) requestAnimationFrame(frame); else ctx.clearRect(0,0,innerWidth,innerHeight);
+  })(t1);
+}
+
+$('play').addEventListener('click', start);
+$('again').addEventListener('click', start);
+$('fifty').addEventListener('click', useFifty);
+$('next').addEventListener('click', () => { if (lives === 0 || i === order.length-1) finish(); else { i++; render(); } });
+document.addEventListener('keydown', e => {
+  if (!$('game').classList.contains('show')) return;
+  const n = '1234'.indexOf(e.key) >= 0 ? '1234'.indexOf(e.key) : 'abcd'.indexOf(e.key.toLowerCase());
+  if (n >= 0 && !answered) { const b = document.querySelectorAll('.opt')[n]; if (b && !b.disabled) b.click(); }
+  else if (e.key === 'Enter' && answered) $('next').click();
+});
+$('bestLine').textContent = bestScore ? `Your best: ${bestScore} points` : 'No score yet. Set the bar.';
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+</script>
+</body>
+</html>

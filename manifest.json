@@ -1,0 +1,12 @@
+{
+  "name": "Red Pen",
+  "short_name": "Red Pen",
+  "description": "A grammar game. Four sentences, one is correct. Pick it and learn why.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f6f4ee",
+  "theme_color": "#f6f4ee",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
