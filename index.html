@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Red Pen">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Sans:wght@400;500;600;700&family=Caveat:wght@500;700&display=swap">
 <style>
 /* Layout: one centred column. A scoreboard strip on top, a ruled "exercise sheet" for the topic, four sentence cards, a verdict bar. */
 :root {
@@ -21,20 +21,22 @@
   --pen: #b4322a; --pen-soft: #f8e4e2;
   --tick: #2d6a3e; --tick-soft: #e1efe4;
   --gold: #b8860b; --gold-soft: #fbf0d2;
+  --pen-fg: #ffffff;
   --display: "Literata", Georgia, "Times New Roman", serif;
   --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --hand: "Caveat", "Segoe Print", "Bradley Hand", cursive;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #17181c; --paper: #1f2126; --rule: #363942; --fg: #ebe8e0; --muted: #a09b90;
     --ink: #8fb0ff; --ink-soft: #243052; --pen: #ff8a7f; --pen-soft: #4a2622; --tick: #7fd49a; --tick-soft: #1f3b28;
-    --gold: #f0c04a; --gold-soft: #3d3418; color-scheme: dark;
+    --gold: #f0c04a; --gold-soft: #3d3418; --pen-fg: #2a1512; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #17181c; --paper: #1f2126; --rule: #363942; --fg: #ebe8e0; --muted: #a09b90;
   --ink: #8fb0ff; --ink-soft: #243052; --pen: #ff8a7f; --pen-soft: #4a2622; --tick: #7fd49a; --tick-soft: #1f3b28;
-  --gold: #f0c04a; --gold-soft: #3d3418; color-scheme: dark;
+  --gold: #f0c04a; --gold-soft: #3d3418; --pen-fg: #2a1512; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body {
@@ -66,9 +68,11 @@ h1 { font-family: var(--display); font-weight: 600; font-size: 1.5rem; margin: 0
 
 /* Sheet */
 .sheet {
-  background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 26px 24px 20px; position: relative;
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 26px 24px 20px 56px; position: relative;
   background-image: repeating-linear-gradient(transparent 0 31px, var(--rule) 31px 32px); background-origin: content-box;
+  overflow: hidden;
 }
+.sheet::before { content: ""; position: absolute; top: 0; bottom: 0; left: 40px; width: 2px; background: var(--pen); opacity: .55; }
 .sheet .tag { position: absolute; top: 10px; right: 12px; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
 .topic { font-family: var(--display); font-size: 1.375rem; line-height: 32px; margin: 0; text-wrap: balance; }
 .prompt { font-size: 0.875rem; color: var(--muted); margin: 0; }
@@ -112,9 +116,32 @@ h1 { font-family: var(--display); font-weight: 600; font-size: 1.5rem; margin: 0
 /* Screens */
 .screen { display: none; gap: 18px; }
 .screen.show { display: grid; }
-.intro .sheet { padding-bottom: 26px; }
-.intro ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.925rem; }
-.intro li { margin: 4px 0; }
+.intro h1 { font-size: 2.25rem; position: relative; display: inline-block; }
+.intro h1 svg { position: absolute; left: -2%; bottom: -6px; width: 104%; height: 14px; overflow: visible; }
+.intro h1 path { fill: none; stroke: var(--pen); stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 400; stroke-dashoffset: 400; animation: draw 1s .3s ease-out forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.demo { font-family: var(--display); font-size: 1.5rem; line-height: 32px; margin: 0; min-height: 64px; }
+.demo .wrong { position: relative; display: inline-block; color: var(--muted); }
+.demo .wrong::after { content: ""; position: absolute; left: -2px; right: -2px; top: 55%; height: 3px; background: var(--pen); border-radius: 2px; transform: rotate(-3deg); transform-origin: left; animation: strike .35s .6s both; }
+.demo .fix { position: absolute; left: 0; top: -1.15em; font-family: var(--hand); font-weight: 700; color: var(--pen); font-size: 1.1em; white-space: nowrap; line-height: 1; animation: fade .3s .95s both; }
+.demo .tick { font-family: var(--hand); font-weight: 700; color: var(--pen); font-size: 1.6em; margin-left: .35em; line-height: 1; vertical-align: -0.1em; animation: fade .3s 1.2s both; }
+.intro .margin { position: absolute; left: 8px; top: 30px; font-family: var(--hand); font-weight: 700; color: var(--pen); font-size: 1.25rem; line-height: 1; transform: rotate(-8deg); animation: fade .3s 1.2s both; }
+@keyframes strike { from { transform: rotate(-3deg) scaleX(0); } to { transform: rotate(-3deg) scaleX(1); } }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.demo.swap .wrong::after, .demo.swap .fix, .demo.swap .tick, .demo.swap .margin { animation: none; opacity: 0; }
+.demo .note { display: block; font-family: var(--body); font-size: 0.8rem; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+.scheme { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.mark { background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; display: grid; grid-template-columns: 44px 1fr; gap: 10px; align-items: center; }
+.mark .glyph { font-family: var(--hand); font-weight: 700; color: var(--pen); font-size: 1.6rem; line-height: 1; text-align: center; transform: rotate(-6deg); }
+.mark b { display: block; font-size: 0.9rem; }
+.mark span { font-size: 0.8rem; color: var(--muted); line-height: 1.35; }
+.marks { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.8rem; color: var(--muted); }
+.marks span { display: inline-flex; align-items: center; gap: 6px; }
+.marks b { font-family: var(--hand); font-weight: 700; color: var(--pen); font-size: 1.5rem; line-height: 1; }
+.btn.pen { background: var(--pen); color: var(--pen-fg); }
+.btn.pen:focus-visible { outline-color: var(--pen); }
+@media (max-width: 480px) { .scheme { grid-template-columns: 1fr; } .intro h1 { font-size: 1.9rem; } .demo { font-size: 1.25rem; } }
+@media (prefers-reduced-motion: reduce) { .intro h1 path { animation: none; stroke-dashoffset: 0; } .demo .wrong::after, .demo .fix, .demo .tick, .demo .margin { animation: none; } }
 .result h2 { font-family: var(--display); font-weight: 600; margin: 0; font-size: 1.5rem; }
 .result .big { font-family: var(--display); font-size: 3.5rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
 .result .grade { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--gold-soft); color: var(--gold); font-weight: 700; font-size: 0.85rem; }
@@ -134,20 +161,21 @@ canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-
   <section class="screen intro show" id="intro">
     <div>
       <div class="eyebrow">Pick the correct sentence</div>
-      <h1>Red Pen</h1>
+      <h1>Red Pen<svg viewBox="0 0 200 14" preserveAspectRatio="none" aria-hidden="true"><path d="M2 9 C 40 2, 90 13, 130 6 S 185 4, 198 8"/></svg></h1>
     </div>
-    <div class="sheet">
-      <p class="topic">Twelve rounds. Three lives. One sentence in four is right.</p>
-      <ul style="margin-top:14px">
-        <li>Answer fast for a time bonus. The bar drains in 20 seconds.</li>
-        <li>Build a streak: 3 in a row doubles your points, 6 in a row triples them.</li>
-        <li>One 50/50 per game removes two wrong answers.</li>
-        <li>Three mistakes ends the game early.</li>
-      </ul>
+    <div class="sheet" style="padding-top:36px">
+      <span class="margin" id="demoMargin" aria-hidden="true">✗</span>
+      <p class="demo" id="demo"></p>
     </div>
+    <div class="scheme">
+      <div class="mark"><span class="glyph">20s</span><div><b>Beat the clock</b><span>The bar drains in twenty seconds. Faster answers earn a bigger bonus.</span></div></div>
+      <div class="mark"><span class="glyph">×3</span><div><b>Build a streak</b><span>Three in a row doubles your points. Six in a row triples them.</span></div></div>
+      <div class="mark"><span class="glyph">½</span><div><b>One 50/50</b><span>Strikes out two wrong sentences. Once per game, so spend it wisely.</span></div></div>
+      <div class="mark"><span class="glyph">3♥</span><div><b>Three lives</b><span>A wrong answer or a timeout costs one. Lose all three and the sheet is handed in.</span></div></div>
+    </div>
+    <div class="marks" id="marks"></div>
     <div class="row">
-      <button class="btn" id="play">Start playing</button>
-      <span class="hint" id="bestLine" style="align-self:center"></span>
+      <button class="btn pen" id="play">Start playing</button>
     </div>
   </section>
 
@@ -438,6 +466,10 @@ function finish(){
   $('resScore').textContent = score;
   const newBest = score > bestScore;
   if (newBest) { bestScore = score; try { localStorage.setItem('rp-best', bestScore); } catch (e) {} }
+  try {
+    localStorage.setItem('rp-games', (+localStorage.getItem('rp-games') || 0) + 1);
+    if (correct === order.length) localStorage.setItem('rp-flawless', (+localStorage.getItem('rp-flawless') || 0) + 1);
+  } catch (e) {}
   $('resTitle').textContent = newBest ? 'New personal best' : (out ? `Ended on round ${played}` : 'All twelve rounds done');
   $('resLine').textContent = `${correct} of ${played} correct · best streak ${best} · previous best ${newBest ? 'beaten' : bestScore}`;
   const pct = correct / order.length;
@@ -467,7 +499,7 @@ function confetti(){
 }
 
 $('play').addEventListener('click', start);
-$('again').addEventListener('click', start);
+$('again').addEventListener('click', () => { showMarks(); start(); });
 $('fifty').addEventListener('click', useFifty);
 $('next').addEventListener('click', () => { if (lives === 0 || i === order.length-1) finish(); else { i++; render(); } });
 document.addEventListener('keydown', e => {
@@ -476,7 +508,30 @@ document.addEventListener('keydown', e => {
   if (n >= 0 && !answered) { const b = document.querySelectorAll('.opt')[n]; if (b && !b.disabled) b.click(); }
   else if (e.key === 'Enter' && answered) $('next').click();
 });
-$('bestLine').textContent = bestScore ? `Your best: ${bestScore} points` : 'No score yet. Set the bar.';
+const DEMOS = [
+  { pre:'She ', wrong:"don't", fix:"doesn't", post:' like coffee in the morning.', note:'Subject–verb agreement. A singular subject takes “doesn’t”.' },
+  { pre:'There are ', wrong:'less', fix:'fewer', post:' people here than last week.', note:'Countable nouns take “fewer”. “Less” is for things you measure.' },
+  { pre:'Walking down the street, ', wrong:'the trees looked beautiful', fix:'I noticed the trees', post:'.', note:'Dangling modifier. The trees were not doing the walking.' },
+  { pre:'He is ', wrong:'a', fix:'an', post:' honest man.', note:'The “h” is silent, so the word starts with a vowel sound.' },
+  { pre:'If I ', wrong:'was', fix:'were', post:' you, I would take the job.', note:'Hypothetical “if” clauses take “were” in careful writing.' },
+];
+let demoN = Math.floor(Math.random() * DEMOS.length), demoTimer = 0;
+function showDemo(){
+  const d = DEMOS[demoN % DEMOS.length], el = $('demo');
+  el.classList.add('swap');
+  el.innerHTML = `${d.pre}<span class="wrong">${d.wrong}<span class="fix">${d.fix}</span></span>${d.post}<span class="tick">✓</span><span class="note">${d.note}</span>`;
+  void el.offsetWidth; el.classList.remove('swap');
+  demoN++;
+}
+function showMarks(){
+  let games = 0, flawless = 0;
+  try { games = +localStorage.getItem('rp-games') || 0; flawless = +localStorage.getItem('rp-flawless') || 0; } catch (e) {}
+  $('marks').innerHTML = bestScore
+    ? `<span><b>${bestScore}</b>best score</span><span><b>${games}</b>${games === 1 ? 'game played' : 'games played'}</span><span><b>${flawless}</b>flawless</span>`
+    : `<span><b>?</b>No score yet. Set the bar.</span>`;
+}
+showDemo(); showMarks();
+demoTimer = setInterval(() => { if ($('intro').classList.contains('show')) showDemo(); }, 4500);
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
 </script>

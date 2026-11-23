@@ -1,4 +1,4 @@
-var CACHE = 'redpen-v1';
+var CACHE = 'redpen-v2';
 var FILES = ['./', './index.html', './manifest.json', './icon.svg', './sw.js'];
 
 self.addEventListener('install', function (e) {
